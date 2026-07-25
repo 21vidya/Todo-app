@@ -1,0 +1,173 @@
+import React, { useState, useEffect } from "react";
+import { Globe, CheckSquare, RefreshCw, AlertCircle, ArrowLeft, Lock } from "lucide-react";
+import { TodoList, TodoItem, ListStats } from "../types";
+import { api } from "../services/api";
+import { TodoStatsCard } from "./TodoStatsCard";
+import { TodoItemRow } from "./TodoItemRow";
+
+interface PublicViewProps {
+  shareToken: string;
+  onGoHome: () => void;
+}
+
+export const PublicView: React.FC<PublicViewProps> = ({ shareToken, onGoHome }) => {
+  const [data, setData] = useState<{
+    list: TodoList;
+    ownerName: string;
+    items: TodoItem[];
+    stats: ListStats;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+
+  const fetchSharedList = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.getSharedList(shareToken);
+      setData(res);
+    } catch (err: any) {
+      setError(err.message || "Failed to load shared todo list");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSharedList();
+  }, [shareToken]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
+        <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+          Loading shared Todo List...
+        </p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">
+            Access Restricted
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+            {error || "This Todo List is either private or does not exist."}
+          </p>
+          <button
+            onClick={onGoHome}
+            className="px-5 py-2.5 bg-indigo-600 text-white font-semibold text-xs rounded-xl hover:bg-indigo-700 transition-colors inline-flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Go to App Homepage</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { list, ownerName, items, stats } = data;
+
+  // Filter items by tag
+  const filteredItems = items.filter((item) => {
+    if (!selectedTagFilter) return true;
+    if (selectedTagFilter === "no tag") {
+      return !item.tags || item.tags.length === 0;
+    }
+    return item.tags && item.tags.includes(selectedTagFilter);
+  });
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-12">
+      {/* Prominent Public Banner */}
+      <div className="bg-emerald-600 text-white py-3 px-4 shadow-sm border-b border-emerald-700">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-semibold">
+          <div className="flex items-center gap-2">
+            <span className="p-1 bg-white/20 rounded-md">
+              <Globe className="w-4 h-4 text-white" />
+            </span>
+            <span>PUBLICLY SHARED TODO LIST</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full font-normal">
+              Shared by {ownerName}
+            </span>
+          </div>
+
+          <button
+            onClick={onGoHome}
+            className="text-white hover:underline flex items-center gap-1 font-normal opacity-90 hover:opacity-100"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Create your own Todo Lists</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-md">
+            <CheckSquare className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+              {list.name}
+            </h1>
+            <p className="text-xs text-slate-500">
+              Read-only view • Created on {new Date(list.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+
+        {/* Statistics Panel */}
+        <TodoStatsCard
+          stats={stats}
+          selectedTagFilter={selectedTagFilter}
+          onSelectTagFilter={setSelectedTagFilter}
+          listName={list.name}
+        />
+
+        {/* Read-only Items List */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center justify-between">
+            <span>Todo Items ({filteredItems.length})</span>
+            {selectedTagFilter && (
+              <span className="text-xs text-indigo-600 font-normal">
+                Filtered by #{selectedTagFilter}
+              </span>
+            )}
+          </h2>
+
+          {filteredItems.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No items found for this filter.</p>
+            </div>
+          ) : (
+            <div>
+              {filteredItems.map((item, index) => (
+                <TodoItemRow
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  totalItems={filteredItems.length}
+                  onToggleComplete={() => {}}
+                  onUpdateItem={() => {}}
+                  onDeleteItem={() => {}}
+                  isReadOnly={true}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
